@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	oldDBName = "Yukki"
+	oldDBName = "ERAVIBES"
 )
 
 // old data structures
