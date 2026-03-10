@@ -36,8 +36,8 @@ import (
 
 const (
 	PlatformEraApi  state.PlatformName = "EraApi"
-	eraApiTryURL                       = "https://eytapi01-33c907c1b051.herokuapp.com/try"
-	eraApiStatusURL                    = "https://eytapi01-33c907c1b051.herokuapp.com/status"
+	eraApiTryURL                       = "https://eytapi02-fd074525a32f.herokuapp.com/try"
+	eraApiStatusURL                    = "https://eytapi02-fd074525a32f.herokuapp.com/status"
 	eraMaxPolls                        = 600
 )
 
