@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Laky-64/gologging"
@@ -42,14 +43,18 @@ const (
 	eraMaxPolls                        = 600
 )
 
+var eraapiTelegramDLRegex = regexp.MustCompile(`https:\/\/t\.me\/(?:c\/)?([a-zA-Z0-9_\-]+)\/(\d+)`)
+
 type eraApiTryResponse struct {
 	Link  string `json:"link"`
+	Dow   string `json:"dow"`
 	JobID string `json:"job_id"`
 }
 
 type eraApiStatusResponse struct {
 	Status string `json:"status"`
 	Link   string `json:"link"`
+	Dow    string `json:"dow"`
 }
 
 type EraApiPlatform struct{}
@@ -98,13 +103,18 @@ func (e *EraApiPlatform) Download(
 		return "", fmt.Errorf("eraapi: request failed: %w", err)
 	}
 
-	dlLink := tryResp.Link
+	dlLink := tryResp.Dow
+	if dlLink == "" {
+		dlLink = tryResp.Link
+	}
+
 	if dlLink == "" {
 		if tryResp.JobID == "" {
 			return "", errors.New("eraapi: neither link nor job_id received")
 		}
-		gologging.InfoF("EraApi: polling job %s", tryResp.JobID)
-		dlLink, err = e.pollJob(ctx, tryResp.JobID)
+		jobIDStr := strings.TrimSpace(tryResp.JobID)
+		gologging.InfoF("EraApi: polling job %s", jobIDStr)
+		dlLink, err = e.pollJob(ctx, jobIDStr)
 		if err != nil {
 			return "", fmt.Errorf("eraapi: poll failed: %w", err)
 		}
@@ -125,7 +135,7 @@ func (e *EraApiPlatform) Download(
 		pm = utils.GetProgress(mystic)
 	}
 
-	if telegramDLRegex.MatchString(dlLink) {
+	if eraapiTelegramDLRegex.MatchString(dlLink) {
 		destPath, err = e.downloadFromTelegram(ctx, dlLink, destPath, pm)
 	} else {
 		err = e.downloadFromHTTP(ctx, dlLink, destPath)
@@ -204,6 +214,9 @@ func (*EraApiPlatform) pollJob(ctx context.Context, jobID string) (string, error
 
 		switch statusResp.Status {
 		case "done":
+			if statusResp.Dow != "" {
+				return statusResp.Dow, nil
+			}
 			return statusResp.Link, nil
 		case "failed":
 			return "", errors.New("eraapi: server reported download failure")
@@ -240,7 +253,7 @@ func (*EraApiPlatform) downloadFromTelegram(
 	dlURL, destPath string,
 	pm *telegram.ProgressManager,
 ) (string, error) {
-	matches := telegramDLRegex.FindStringSubmatch(dlURL)
+	matches := eraapiTelegramDLRegex.FindStringSubmatch(dlURL)
 	if len(matches) < 3 {
 		return "", fmt.Errorf("eraapi: invalid Telegram link: %s", dlURL)
 	}
