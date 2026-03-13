@@ -63,18 +63,6 @@ func init() {
 
 func (*EraApiPlatform) Name() state.PlatformName { return PlatformEraApi }
 
-func parseQuery(query string) string {
-	ytURLRegex := regexp.MustCompile(`^(https?://)?(www\.)?(youtube\.com|youtu\.be)/(?:watch\?v=|embed/|v/|shorts/|live/)?([A-Za-z0-9_-]{11})(?:[?&].*)?$`)
-	if ytURLRegex.MatchString(query) {
-		ytMatchRegex := regexp.MustCompile(`(?:v=|\/(?:embed|v|shorts|live)\/|youtu\.be\/)([A-Za-z0-9_-]{11})`)
-		match := ytMatchRegex.FindStringSubmatch(query)
-		if len(match) > 1 {
-			return fmt.Sprintf("https://www.youtube.com/watch?v=%s", match[1])
-		}
-	}
-	return query
-}
-
 func (*EraApiPlatform) CanGetTracks(_ string) bool { return false }
 
 func (*EraApiPlatform) GetTracks(_ string, _ bool) ([]*state.Track, error) {
