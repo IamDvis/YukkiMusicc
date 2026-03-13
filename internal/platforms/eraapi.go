@@ -23,6 +23,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -59,6 +60,18 @@ func init() {
 
 func (*EraApiPlatform) Name() state.PlatformName { return PlatformEraApi }
 
+func parseQuery(query string) string {
+	ytURLRegex := regexp.MustCompile(`^(https?://)?(www\.)?(youtube\.com|youtu\.be)/(?:watch\?v=|embed/|v/|shorts/|live/)?([A-Za-z0-9_-]{11})(?:[?&].*)?$`)
+	if ytURLRegex.MatchString(query) {
+		ytMatchRegex := regexp.MustCompile(`(?:v=|\/(?:embed|v|shorts|live)\/|youtu\.be\/)([A-Za-z0-9_-]{11})`)
+		match := ytMatchRegex.FindStringSubmatch(query)
+		if len(match) > 1 {
+			return fmt.Sprintf("https://www.youtube.com/watch?v=%s", match[1])
+		}
+	}
+	return query
+}
+
 func (*EraApiPlatform) CanGetTracks(_ string) bool { return false }
 
 func (*EraApiPlatform) GetTracks(_ string, _ bool) ([]*state.Track, error) {
@@ -74,14 +87,13 @@ func (e *EraApiPlatform) Download(
 	track *state.Track,
 	mystic *telegram.NewMessage,
 ) (string, error) {
-	track.Video = false
-
 	if f := findFile(track); f != "" {
 		gologging.Debug("EraApi: cache hit → " + f)
 		return f, nil
 	}
 
-	tryResp, err := e.requestJob(ctx, track.URL)
+	query := parseQuery(track.URL)
+	tryResp, err := e.requestJob(ctx, query, track.Video)
 	if err != nil {
 		return "", fmt.Errorf("eraapi: request failed: %w", err)
 	}
@@ -102,7 +114,11 @@ func (e *EraApiPlatform) Download(
 		return "", errors.New("eraapi: empty download link returned by API")
 	}
 
-	destPath := getPath(track, ".mp3")
+	ext := ".mp3"
+	if track.Video {
+		ext = ".mp4"
+	}
+	destPath := getPath(track, ext)
 
 	var pm *telegram.ProgressManager
 	if mystic != nil {
@@ -126,14 +142,19 @@ func (e *EraApiPlatform) Download(
 	return destPath, nil
 }
 
-func (*EraApiPlatform) requestJob(ctx context.Context, query string) (*eraApiTryResponse, error) {
+func (*EraApiPlatform) requestJob(ctx context.Context, query string, isVideo bool) (*eraApiTryResponse, error) {
 	var resp eraApiTryResponse
+
+	vid := "false"
+	if isVideo {
+		vid = "true"
+	}
 
 	httpResp, err := rc.R().
 		SetContext(ctx).
 		SetQueryParams(map[string]string{
 			"query": query,
-			"vid":   "false",
+			"vid":   vid,
 		}).
 		SetResult(&resp).
 		Get(eraApiTryURL)
