@@ -1,167 +1,64 @@
 /*
-  - This file is part of YukkiMusic.
-    *
+ * This file is part of YukkiMusic.
+ *
+ * YukkiMusic — A Telegram bot that streams music into group voice chats with seamless playback and control.
+ * Copyright (C) 2025 TheTeamVivek
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
 
-  - YukkiMusic — A Telegram bot that streams music into group voice chats with seamless playback and control.
-  - Copyright (C) 2025 TheTeamVivek
-    *
-  - This program is free software: you can redistribute it and/or modify
-  - it under the terms of the GNU General Public License as published by
-  - the Free Software Foundation, either version 3 of the License, or
-  - (at your option) any later version.
-    *
-  - This program is distributed in the hope that it will be useful,
-  - but WITHOUT ANY WARRANTY; without even the implied warranty of
-  - MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-  - GNU General Public License for more details.
-    *
-  - You should have received a copy of the GNU General Public License
-  - along with this program. If not, see <https://www.gnu.org/licenses/>.
-*/
-package platforms
+package core
 
+import (
 	"fmt"
-	"net/url"
-	"os"
-	"path/filepath"
-	"regexp"
 	"strings"
 
-	"github.com/Laky-64/gologging"
-	"github.com/amarnathcjd/gogram/telegram"
-
-	state "main/internal/core/models"
+	"main/internal/utils"
 )
 
-func parseQuery(query string) string {
-	u, err := url.Parse(query)
-	if err == nil {
-		v := u.Query().Get("v")
-		if len(v) == 11 {
-			return "https://www.youtube.com/watch?v=" + v
-		}
+func normalizeVideo(path string, speed float64) (int, int, int, string) {
+	if speed <= 0 {
+		speed = 1.0
 	}
-
-	ytURLRegex := regexp.MustCompile(`(?i)^(?:https?://)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)/(?:watch\?v=|embed/|v/|shorts/|live/)?([A-Za-z0-9_-]{11})`)
-	if ytURLRegex.MatchString(query) {
-		match := ytURLRegex.FindStringSubmatch(query)
-		if len(match) > 1 && match[1] != "" {
-			return fmt.Sprintf("https://www.youtube.com/watch?v=%s", match[1])
-		}
+	w, h := utils.GetVideoDimensions(path)
+	if w <= 0 || h <= 0 {
+		w = 1280
+		h = 720
 	}
-	return query
+	maxW := 1280
+	maxH := 720
+	if w > maxW {
+		h = h * maxW / w
+		w = maxW
+	}
+	if h > maxH {
+		w = w * maxH / h
+		h = maxH
+	}
+	if w%2 != 0 {
+		w--
+	}
+	if h%2 != 0 {
+		h--
+	}
+	fps := 30
+	videoSpeed := 1.0 / speed
+	filter := fmt.Sprintf("setpts=%.4f*PTS,scale=%d:%d", videoSpeed, w, h)
+	return w, h, fps, filter
 }
 
-func getPath(track *state.Track, ext string) string {
-	if ext != "" && !strings.HasPrefix(ext, ".") {
-		ext = "." + ext
-	}
-
-	mediaType := "audio"
-	if track.Video {
-		mediaType = "video"
-	}
-
-	filename := mediaType + "_" + track.ID + ext
-
-	return filepath.Join("downloads", filename)
-}
-
-func fileExists(path string) bool {
-	i, err := os.Stat(path)
-	if err != nil {
-		gologging.ErrorF("os.Stat: %v", err)
-		return false
-	}
-
-	return i.Size() > 0
-}
-
-func findFile(track *state.Track) string {
-	t := "audio"
-	if track.Video {
-		t = "video"
-	}
-
-	files, err := filepath.Glob(filepath.Join("downloads", t+"_"+track.ID+"*"))
-	if err != nil {
-		gologging.ErrorF("filepath.Glob: %v", err)
-		return ""
-	}
-
-	for _, f := range files {
-		if i, err := os.Stat(f); err == nil && i.Size() > 0 {
-			return f
-		}
-	}
-
-	return ""
-}
-
-func findAndRemove(track *state.Track) {
-	t := "audio"
-	if track.Video {
-		t = "video"
-	}
-
-	files, err := filepath.Glob(filepath.Join("downloads", t+"_"+track.ID+"*"))
-	if err != nil {
-		return
-	}
-
-	for _, f := range files {
-		os.Remove(f)
-	}
-}
-
-func sanitizeAPIError(err error, apiKey string) error {
-	if err == nil || apiKey == "" {
-		return err
-	}
-	masked := strings.ReplaceAll(err.Error(), apiKey, "***REDACTED***")
-	return errors.New(masked)
-}
-
-func playableMedia(m *telegram.NewMessage) (bool, bool) {
-	if m == nil {
-		return false, false
-	}
-
-	check := func(msg *telegram.NewMessage) (bool, bool) {
-		if msg.Audio() != nil || msg.Voice() != nil {
-			return false, true
-		}
-
-		if msg.Video() != nil {
-			return true, false
-		}
-
-		if msg.Document() != nil {
-			ext := strings.ToLower(msg.File.Ext)
-			if !strings.HasPrefix(ext, ".") {
-				ext = "." + ext
-			}
-
-			mimeType := mime.TypeByExtension(ext)
-
-			if strings.HasPrefix(mimeType, "audio/") {
-				return false, true
-			}
-			if strings.HasPrefix(mimeType, "video/") {
-				return true, false
-			}
-		}
-
-		return false, false
-	}
-
-	if m.IsReply() {
-		rmsg, err := m.GetReplyMessage()
-		if err != nil {
-			return false, false
-		}
-		return check(rmsg)
-	}
-
-	return check(m)
+func isStreamURL(path string) bool {
+	return strings.HasPrefix(path, "http://") ||
+		strings.HasPrefix(path, "https://")
 }
