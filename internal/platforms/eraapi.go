@@ -47,14 +47,12 @@ var eraapiTelegramDLRegex = regexp.MustCompile(`https:\/\/t\.me\/(?:c\/)?([a-zA-
 
 type eraApiTryResponse struct {
 	Link  string `json:"link"`
-	Dow   string `json:"dow"`
 	JobID string `json:"job_id"`
 }
 
 type eraApiStatusResponse struct {
 	Status string `json:"status"`
 	Link   string `json:"link"`
-	Dow    string `json:"dow"`
 }
 
 type EraApiPlatform struct{}
@@ -103,11 +101,7 @@ func (e *EraApiPlatform) Download(
 		return "", fmt.Errorf("eraapi: request failed: %w", err)
 	}
 
-	dlLink := tryResp.Dow
-	if dlLink == "" {
-		dlLink = tryResp.Link
-	}
-
+	dlLink := tryResp.Link
 	if dlLink == "" {
 		if tryResp.JobID == "" {
 			return "", errors.New("eraapi: neither link nor job_id received")
@@ -138,7 +132,7 @@ func (e *EraApiPlatform) Download(
 	if eraapiTelegramDLRegex.MatchString(dlLink) {
 		destPath, err = e.downloadFromTelegram(ctx, dlLink, destPath, pm)
 	} else {
-		err = e.downloadFromHTTP(ctx, dlLink, destPath)
+		return "", errors.New("eraapi: link is not a Telegram link")
 	}
 
 	if err != nil {
@@ -214,9 +208,6 @@ func (*EraApiPlatform) pollJob(ctx context.Context, jobID string) (string, error
 
 		switch statusResp.Status {
 		case "done":
-			if statusResp.Dow != "" {
-				return statusResp.Dow, nil
-			}
 			return statusResp.Link, nil
 		case "failed":
 			return "", errors.New("eraapi: server reported download failure")
@@ -226,26 +217,6 @@ func (*EraApiPlatform) pollJob(ctx context.Context, jobID string) (string, error
 	}
 
 	return "", fmt.Errorf("eraapi: timeout after %d seconds for job %s", eraMaxPolls, jobID)
-}
-
-func (*EraApiPlatform) downloadFromHTTP(ctx context.Context, dlURL, destPath string) error {
-	resp, err := rc.R().
-		SetContext(ctx).
-		SetOutputFileName(destPath).
-		Get(dlURL)
-
-	if err != nil {
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return err
-		}
-		return fmt.Errorf("HTTP download failed: %w", err)
-	}
-
-	if resp.IsError() {
-		return fmt.Errorf("HTTP download failed with status %d", resp.StatusCode())
-	}
-
-	return nil
 }
 
 func (*EraApiPlatform) downloadFromTelegram(
