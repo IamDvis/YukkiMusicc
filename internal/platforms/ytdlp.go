@@ -62,25 +62,6 @@ var youtubePatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)(youtube\.com|youtu\.be|music\.youtube\.com)`),
 }
 
-func parseQuery(query string) string {
-	u, err := url.Parse(query)
-	if err == nil {
-		v := u.Query().Get("v")
-		if len(v) == 11 {
-			return "https://www.youtube.com/watch?v=" + v
-		}
-	}
-
-	ytURLRegex := regexp.MustCompile(`(?i)^(?:https?://)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)/(?:watch\?v=|embed/|v/|shorts/|live/)?([A-Za-z0-9_-]{11})`)
-	if ytURLRegex.MatchString(query) {
-		match := ytURLRegex.FindStringSubmatch(query)
-		if len(match) > 1 && match[1] != "" {
-			return fmt.Sprintf("https://www.youtube.com/watch?v=%s", match[1])
-		}
-	}
-	return query
-}
-
 func init() {
 	Register(60, &YtdlpPlatform{
 		name: PlatformYtDlp,
