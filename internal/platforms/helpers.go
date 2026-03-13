@@ -20,7 +20,10 @@
 */
 package platforms
 
+import (
+	"errors"
 	"fmt"
+	"mime"
 	"net/url"
 	"os"
 	"path/filepath"
