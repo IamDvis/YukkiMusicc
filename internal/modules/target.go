@@ -32,6 +32,8 @@ import (
 	"main/internal/config"
 	"main/internal/core"
 	state "main/internal/core/models"
+	"main/internal/platforms"
+	"main/internal/utils"
 )
 
 const TargetLoopCount = 10000000
@@ -123,12 +125,27 @@ func handleTarget(m *tg.NewMessage, video bool) error {
 	}
 
 	// Prepare track from reply
-	tracks, err := safeGetTracks(m, m, m.ChannelID(), video)
-	if err != nil || len(tracks) == 0 {
-		m.Reply("Failed to fetch track from reply.")
-		return tg.ErrEndGroup
+	var track *state.Track
+	rmsg, err := m.GetReplyMessage()
+	if err == nil {
+		tgp := &platforms.TelegramPlatform{}
+		t, err := tgp.GetTracksByMessage(rmsg)
+		if err == nil {
+			track = t
+			// Determine if video from the replied message
+			v, _ := platforms.PlayableMedia(rmsg)
+			track.Video = v
+		}
 	}
-	track := tracks[0]
+
+	if track == nil {
+		tracks, err := platforms.GetTracks(m, video)
+		if err != nil || len(tracks) == 0 {
+			m.Reply("Failed to fetch track from reply.")
+			return tg.ErrEndGroup
+		}
+		track = tracks[0]
+	}
 
 	// Save current state if playing
 	if r.IsActiveChat() {
