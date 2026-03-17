@@ -111,6 +111,14 @@ func streamEndHandler(
 	defer r.DeleteData("is_transitioning")
 
 	cid := r.EffectiveChatID()
+	if ok, _ := r.GetData("is_target"); ok {
+		if ok, originID := r.GetData("origin_chat_id"); ok {
+			cid = originID.(int64)
+		} else {
+			// Silent mode in target GC
+			cid = 0 
+		}
+	}
 	r.Parse()
 
 	now := time.Now().Unix()
@@ -186,7 +194,9 @@ func streamEndHandler(
 
 		if t == nil {
 			core.DeleteRoom(chatID)
-			core.Bot.SendMessage(cid, F(cid, "stream_queue_finished"))
+			if cid != 0 {
+				core.Bot.SendMessage(cid, F(cid, "stream_queue_finished"))
+			}
 			return
 		}
 	} else {
@@ -199,12 +209,15 @@ func streamEndHandler(
 		statusMsg = F(cid, "cb_replaying")
 	}
 
-	mystic, err := core.Bot.SendMessage(
-		cid,
-		statusMsg,
-	)
-	if err != nil {
-		gologging.ErrorF("[call.go] Failed to send msg: %v", err)
+	var mystic *tg.NewMessage
+	if cid != 0 {
+		mystic, err = core.Bot.SendMessage(
+			cid,
+			statusMsg,
+		)
+		if err != nil {
+			gologging.ErrorF("[call.go] Failed to send msg: %v", err)
+		}
 	}
 
 	var filePath string
@@ -243,22 +256,24 @@ func streamEndHandler(
 	title := utils.ShortTitle(t.Title, 25)
 	safeTitle := html.EscapeString(title)
 
-	msgText := F(cid, "stream_now_playing", locales.Arg{
-		"url":      t.URL,
-		"title":    safeTitle,
-		"duration": formatDuration(t.Duration),
-		"by":       t.Requester,
-	})
+	if cid != 0 {
+		msgText := F(cid, "stream_now_playing", locales.Arg{
+			"url":      t.URL,
+			"title":    safeTitle,
+			"duration": formatDuration(t.Duration),
+			"by":       t.Requester,
+		})
 
-	opt := &telegram.SendOptions{
-		ParseMode:   "HTML",
-		ReplyMarkup: core.GetPlayMarkup(cid, r, false),
+		opt := &telegram.SendOptions{
+			ParseMode:   "HTML",
+			ReplyMarkup: core.GetPlayMarkup(cid, r, false),
+		}
+
+		if t.Artwork != "" && shouldShowThumb(chatID) {
+			opt.Media = utils.CleanURL(t.Artwork)
+		}
+
+		mystic, _ = utils.EOR(mystic, msgText, opt)
+		r.SetMystic(mystic)
 	}
-
-	if t.Artwork != "" && shouldShowThumb(chatID) {
-		opt.Media = utils.CleanURL(t.Artwork)
-	}
-
-	mystic, _ = utils.EOR(mystic, msgText, opt)
-	r.SetMystic(mystic)
 }

@@ -174,7 +174,7 @@ func GetTracks(m *telegram.NewMessage, video bool) ([]*state.Track, error) {
 		if m.IsReply() {
 			isVideo, isAudio := PlayableMedia(m)
 			if isVideo || isAudio {
-				gologging.Debug("URLs failed, falling back to reply media")
+				gologging.Debug("URLs failed, falling back to flow")
 				goto ReplyCheck
 			}
 		}
@@ -185,21 +185,6 @@ func GetTracks(m *telegram.NewMessage, video bool) ([]*state.Track, error) {
 		return nil, formatErrors(errorsL)
 	}
 
-	// If no URLs but have query, search YouTube
-	if query != "" {
-		gologging.Info("No URLs found, searching YouTube with query: " + query)
-
-		tracks, err := yt.GetTracks(query, video)
-		if err != nil {
-			gologging.Error("YouTube search failed: " + err.Error())
-			return nil, err
-		}
-
-		if len(tracks) > 0 {
-			gologging.Info("YouTube track found, returning first result")
-			return []*state.Track{tracks[0]}, nil
-		}
-	}
 ReplyCheck:
 	if m.IsReply() {
 		gologging.Debug("Message is a reply, resolving playable media")
@@ -230,46 +215,60 @@ ReplyCheck:
 			}
 		}
 
-		if target == nil {
-			gologging.Info("Reply chain does not contain valid media")
-			return nil, errors.New("⚠️ Reply with a valid media (audio/video)")
-		}
-
-		tg := &TelegramPlatform{}
-		t, err := tg.GetTracksByMessage(target)
-		if err != nil {
-			errMsg := "Failed to get track from reply: " + err.Error()
-			gologging.Error(errMsg)
-			return nil, err
-		}
-
-		t.Video = isVideo
-
-		if isVideo {
-			gologging.Debug("Reply media is video, preparing thumbnail")
-
-			if err := os.MkdirAll("cache", os.ModePerm); err != nil {
-				gologging.Error("Failed to create cache folder: " + err.Error())
-				return []*state.Track{t}, nil
+		if target != nil {
+			tg := &TelegramPlatform{}
+			t, err := tg.GetTracksByMessage(target)
+			if err != nil {
+				errMsg := "Failed to get track from reply: " + err.Error()
+				gologging.Error(errMsg)
+				return nil, err
 			}
 
-			thumbPath := filepath.Join("cache", "thumb_"+t.ID+".jpg")
-			if _, err := os.Stat(thumbPath); os.IsNotExist(err) {
-				path, err := target.Download(&telegram.DownloadOptions{
-					ThumbOnly: true,
-					FileName:  thumbPath,
-				})
-				if err == nil {
-					if _, err := os.Stat(path); err == nil {
-						t.Artwork = path
-						gologging.Debug("Thumbnail saved: " + path)
+			t.Video = isVideo
+
+			if isVideo {
+				gologging.Debug("Reply media is video, preparing thumbnail")
+
+				if err := os.MkdirAll("cache", os.ModePerm); err != nil {
+					gologging.Error("Failed to create cache folder: " + err.Error())
+					return []*state.Track{t}, nil
+				}
+
+				thumbPath := filepath.Join("cache", "thumb_"+t.ID+".jpg")
+				if _, err := os.Stat(thumbPath); os.IsNotExist(err) {
+					path, err := target.Download(&telegram.DownloadOptions{
+						ThumbOnly: true,
+						FileName:  thumbPath,
+					})
+					if err == nil {
+						if _, err := os.Stat(path); err == nil {
+							t.Artwork = path
+							gologging.Debug("Thumbnail saved: " + path)
+						}
 					}
 				}
 			}
+
+			gologging.Info("Returning track from reply chain")
+			return []*state.Track{t}, nil
+		}
+		gologging.Info("Reply chain does not contain valid media, checking query")
+	}
+
+	// If no URLs/Reply but have query, search YouTube
+	if query != "" {
+		gologging.Info("No URLs/Reply found, searching YouTube with query: " + query)
+
+		tracks, err := yt.GetTracks(query, video)
+		if err != nil {
+			gologging.Error("YouTube search failed: " + err.Error())
+			return nil, err
 		}
 
-		gologging.Info("Returning track from reply chain")
-		return []*state.Track{t}, nil
+		if len(tracks) > 0 {
+			gologging.Info("YouTube track found, returning first result")
+			return []*state.Track{tracks[0]}, nil
+		}
 	}
 
 	if len(errorsL) > 0 {

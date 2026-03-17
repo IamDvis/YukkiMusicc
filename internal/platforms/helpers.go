@@ -73,7 +73,6 @@ func getPath(track *state.Track, ext string) string {
 func fileExists(path string) bool {
 	i, err := os.Stat(path)
 	if err != nil {
-		gologging.ErrorF("os.Stat: %v", err)
 		return false
 	}
 

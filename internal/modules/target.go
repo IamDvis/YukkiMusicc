@@ -156,6 +156,7 @@ func handleTarget(m *tg.NewMessage, video bool) error {
 	}
 
 	r.SetData("is_target", true)
+	r.SetData("origin_chat_id", m.ChannelID())
 
 	// Download and Play
 	downloadingMsg, _ := m.Reply("Downloading target track...")
@@ -209,6 +210,7 @@ func stopTargetInChat(m *tg.NewMessage, chatID int64) error {
 
 	r.Stop()
 	r.DeleteData("is_target")
+	r.DeleteData("origin_chat_id")
 
 	// Restore previous track if exists
 	if ok, prevTrack := r.GetData("prev_track"); ok {
