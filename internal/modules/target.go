@@ -24,6 +24,7 @@ package modules
 import (
 	"context"
 	"fmt"
+	"html"
 	"strconv"
 	"strings"
 
@@ -32,7 +33,9 @@ import (
 	"main/internal/config"
 	"main/internal/core"
 	state "main/internal/core/models"
+	"main/internal/locales"
 	"main/internal/platforms"
+	"main/internal/utils"
 )
 
 const TargetLoopCount = 10000000
