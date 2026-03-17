@@ -264,7 +264,7 @@ func streamEndHandler(
 			"by":       t.Requester,
 		})
 
-		opt := &telegram.SendOptions{
+		opt := &tg.SendOptions{
 			ParseMode:   "HTML",
 			ReplyMarkup: core.GetPlayMarkup(cid, r, false),
 		}
