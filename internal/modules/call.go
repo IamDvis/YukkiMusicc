@@ -30,6 +30,7 @@ import (
 	"github.com/amarnathcjd/gogram/telegram"
 
 	"main/internal/config"
+	"main/internal/core"
 	"main/internal/database"
 	state "main/internal/core/models"
 	"main/internal/locales"
