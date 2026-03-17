@@ -33,7 +33,6 @@ import (
 	"main/internal/core"
 	state "main/internal/core/models"
 	"main/internal/platforms"
-	"main/internal/utils"
 )
 
 const TargetLoopCount = 10000000

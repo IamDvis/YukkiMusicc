@@ -172,7 +172,7 @@ func GetTracks(m *telegram.NewMessage, video bool) ([]*state.Track, error) {
 		// If the command is a reply AND replied message contains playable media,
 		// fall back to reply handling instead of failing immediately.
 		if m.IsReply() {
-			isVideo, isAudio := playableMedia(m)
+			isVideo, isAudio := PlayableMedia(m)
 			if isVideo || isAudio {
 				gologging.Debug("URLs failed, falling back to reply media")
 				goto ReplyCheck
@@ -215,7 +215,7 @@ ReplyCheck:
 			)
 		}
 
-		if v, a := playableMedia(rmsg); v || a {
+		if v, a := PlayableMedia(rmsg); v || a {
 			target = rmsg
 			isVideo = v
 		}
@@ -223,7 +223,7 @@ ReplyCheck:
 		if target == nil && rmsg.IsReply() {
 			rrmsg, err := rmsg.GetReplyMessage()
 			if err == nil {
-				if v, a := playableMedia(rrmsg); v || a {
+				if v, a := PlayableMedia(rrmsg); v || a {
 					target = rrmsg
 					isVideo = v
 				}

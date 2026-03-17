@@ -104,7 +104,7 @@ func (t *TelegramPlatform) GetTracks(
 		return nil, fmt.Errorf("failed to fetch Telegram message: %w", err)
 	}
 
-	isVideo, isAudio := playableMedia(msg)
+	isVideo, isAudio := PlayableMedia(msg)
 	if !isVideo && !isAudio {
 		return nil, fmt.Errorf(
 			"telegram message does not contain playable media",

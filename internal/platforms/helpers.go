@@ -125,7 +125,7 @@ func sanitizeAPIError(err error, apiKey string) error {
 	return errors.New(masked)
 }
 
-func playableMedia(m *telegram.NewMessage) (bool, bool) {
+func PlayableMedia(m *telegram.NewMessage) (bool, bool) {
 	if m == nil {
 		return false, false
 	}
@@ -159,11 +159,7 @@ func playableMedia(m *telegram.NewMessage) (bool, bool) {
 	}
 
 	if m.IsReply() {
-		rmsg, err := m.GetReplyMessage()
-		if err != nil {
-			return false, false
-		}
-		return check(rmsg)
+		return PlayableMedia(rmsg)
 	}
 
 	return check(m)
