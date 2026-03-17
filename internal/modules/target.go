@@ -33,6 +33,7 @@ import (
 
 	"main/internal/config"
 	"main/internal/core"
+	state "main/internal/core/models"
 	"main/internal/utils"
 )
 
@@ -76,7 +77,7 @@ func stopAllTargetHandler(m *tg.NewMessage) error {
 	stoppedCount := 0
 
 	for chatID, r := range rooms {
-		if _, ok := r.GetData("is_target"); ok {
+		if ok, _ := r.GetData("is_target"); ok {
 			stopTargetInChat(nil, chatID)
 			stoppedCount++
 		}
@@ -108,7 +109,7 @@ func handleTarget(m *tg.NewMessage, video bool) error {
 		return tg.ErrEndGroup
 	}
 
-	replyMsg := m.ReplyToMessage
+	// replyMsg handled by platforms.GetTracks via m
 
 	ass, err := core.Assistants.ForChat(targetChatID)
 	if err != nil {
@@ -119,7 +120,7 @@ func handleTarget(m *tg.NewMessage, video bool) error {
 	r, _ := core.GetRoom(targetChatID, ass, true)
 
 	// Check if already in target mode
-	if _, ok := r.GetData("is_target"); ok {
+	if ok, _ := r.GetData("is_target"); ok {
 		m.Reply("Target system already active in this chat. Use /stoptarget first.")
 		return tg.ErrEndGroup
 	}
@@ -186,7 +187,7 @@ func stopTargetInChat(m *tg.NewMessage, chatID int64) error {
 		return tg.ErrEndGroup
 	}
 
-	if _, ok := r.GetData("is_target"); !ok {
+	if ok, _ := r.GetData("is_target"); !ok {
 		if m != nil {
 			m.Reply("Target system is not active in this chat.")
 		}
@@ -197,14 +198,14 @@ func stopTargetInChat(m *tg.NewMessage, chatID int64) error {
 	r.DeleteData("is_target")
 
 	// Restore previous track if exists
-	if prevTrack, ok := r.GetData("prev_track"); ok {
-		prevPath, _ := r.GetData("prev_path")
-		prevPos, _ := r.GetData("prev_pos")
+	if ok, prevTrack := r.GetData("prev_track"); ok {
+		ok2, prevPath := r.GetData("prev_path")
+		ok3, prevPos := r.GetData("prev_pos")
 
-		r.Play(prevTrack.(*core.Track), prevPath.(string), true)
-		r.Resume()
-		// We can't easily seek here without more complex logic in room state, 
-		// but standard Resume should works if position was handled during pause.
+		if ok2 && ok3 {
+			r.Play(prevTrack.(*state.Track), prevPath.(string), true)
+			r.Resume()
+		}
 		
 		r.DeleteData("prev_track")
 		r.DeleteData("prev_path")
