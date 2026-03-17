@@ -217,6 +217,24 @@ var handlers = []MsgHandlerDef{
 		Filters: []telegram.Filter{superGroupFilter, authFilter},
 	},
 
+	// Target System
+	{
+		Pattern: "target",
+		Handler: targetHandler,
+	},
+	{
+		Pattern: "vtarget",
+		Handler: vtargetHandler,
+	},
+	{
+		Pattern: "(stoptarget|st)",
+		Handler: stopTargetHandler,
+	},
+	{
+		Pattern: "(stopalltarget|sat)",
+		Handler: stopAllTargetHandler,
+	},
+
 	{
 		Pattern: "(speed|setspeed|speedup)",
 		Handler: speedHandler,
