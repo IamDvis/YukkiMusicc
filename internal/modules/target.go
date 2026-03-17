@@ -24,17 +24,14 @@ package modules
 import (
 	"context"
 	"fmt"
-	"html"
 	"strconv"
 	"strings"
 
-	"github.com/Laky-64/gologging"
 	tg "github.com/amarnathcjd/gogram/telegram"
 
 	"main/internal/config"
 	"main/internal/core"
 	state "main/internal/core/models"
-	"main/internal/utils"
 )
 
 const TargetLoopCount = 10000000
@@ -200,9 +197,8 @@ func stopTargetInChat(m *tg.NewMessage, chatID int64) error {
 	// Restore previous track if exists
 	if ok, prevTrack := r.GetData("prev_track"); ok {
 		ok2, prevPath := r.GetData("prev_path")
-		ok3, prevPos := r.GetData("prev_pos")
 
-		if ok2 && ok3 {
+		if ok2 {
 			r.Play(prevTrack.(*state.Track), prevPath.(string), true)
 			r.Resume()
 		}
