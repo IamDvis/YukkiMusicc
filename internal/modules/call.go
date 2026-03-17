@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/Laky-64/gologging"
-	"github.com/amarnathcjd/gogram/telegram"
+	tg "github.com/amarnathcjd/gogram/telegram"
 
 	"main/internal/config"
 	"main/internal/core"
