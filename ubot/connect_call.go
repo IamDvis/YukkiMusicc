@@ -2,6 +2,7 @@ package ubot
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	tg "github.com/amarnathcjd/gogram/telegram"
@@ -202,26 +203,41 @@ func (ctx *Context) connectCall(
 			return err
 		}
 
-		resultParams := "{\"transport\": null}"
-		callResRaw, err := ctx.app.PhoneJoinGroupCall(
-			&tg.PhoneJoinGroupCallParams{
-				Muted:        false,
-				VideoStopped: mediaDescription.Camera == nil,
-				Call:         inputGroupCall,
-				Params: &tg.DataJson{
-					Data: jsonParams,
+		var callResRaw any
+		for i := 0; i < 3; i++ {
+			callResRaw, err = ctx.app.PhoneJoinGroupCall(
+				&tg.PhoneJoinGroupCallParams{
+					Muted:        false,
+					VideoStopped: mediaDescription.Camera == nil,
+					Call:         inputGroupCall,
+					Params: &tg.DataJson{
+						Data: jsonParams,
+					},
+					JoinAs: &tg.InputPeerUser{
+						UserID:     ctx.self.ID,
+						AccessHash: ctx.self.AccessHash,
+					},
 				},
-				JoinAs: &tg.InputPeerUser{
-					UserID:     ctx.self.ID,
-					AccessHash: ctx.self.AccessHash,
-				},
-			},
-		)
+			)
+			if err == nil {
+				break
+			}
+
+			// Check for INTERDC_X_CALL_ERROR or generic 500 errors from DC
+			if strings.Contains(err.Error(), "INTERDC_X_CALL_ERROR") || strings.Contains(err.Error(), "500") {
+				fmt.Printf("[ubot] PhoneJoinGroupCall failed (attempt %d): %v. Retrying in 2s...\n", i+1, err)
+				time.Sleep(2 * time.Second)
+				continue
+			}
+			break
+		}
+
 		if err != nil {
 			ctx.binding.Stop(chatId)
 			return err
 		}
 
+		resultParams := "{\"transport\": null}"
 		callRes := callResRaw.(*tg.UpdatesObj)
 		for _, u := range callRes.Updates {
 			switch update := u.(type) {
