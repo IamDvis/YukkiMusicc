@@ -28,6 +28,8 @@ import (
 	"github.com/Laky-64/gologging"
 	"github.com/amarnathcjd/gogram/telegram"
 
+	"main/internal/config"
+	"main/internal/database"
 	"main/internal/utils"
 )
 
@@ -303,9 +305,9 @@ func (s *ChatState) attemptJoin() error {
 	}
 
 	// Group Limit Check (450)
-	dialogs, err := s.Assistant.Client.GetDialogs(&telegram.DialogOptions{Limit: 1})
-	if err == nil && dialogs.Total >= 450 {
-		gologging.InfoF("Assistant %d reached group limit (%d). Leaving oldest group...", s.Assistant.Index, dialogs.Total)
+	dialogs, err := s.Assistant.Client.GetDialogs(&telegram.DialogOptions{Limit: 450})
+	if err == nil && len(dialogs) >= 450 {
+		gologging.InfoF("Assistant %d reached group limit (%d). Leaving oldest group...", s.Assistant.Index, len(dialogs))
 		exclude := []int64{s.ChatID, config.LoggerID}
 		lruChatID, err := database.GetLeastRecentlyUsedChat(s.Assistant.Index, exclude)
 		if err == nil && lruChatID != 0 {
