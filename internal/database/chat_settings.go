@@ -40,6 +40,7 @@ type ChatSettings struct {
 	RTMPConfig     RTMPConfig `bson:"rtmp_config"`
 	AssistantIndex int        `bson:"ass_index,omitempty"`
 	NoThumb        bool       `bson:"no_thumb"`
+	LastPlayedTime int64      `bson:"last_played_time"`
 }
 
 func defaultChatSettings(chatID int64) *ChatSettings {
@@ -101,4 +102,58 @@ func updateChatSettings(newSettings *ChatSettings) error {
 
 	dbCache.Set(cacheKey, newSettings)
 	return nil
+}
+
+func UpdateLastPlayed(chatID int64, timestamp int64) error {
+	ctx, cancel := mongoCtx()
+	defer cancel()
+
+	_, err := chatSettingsColl.UpdateOne(
+		ctx,
+		bson.M{"_id": chatID},
+		bson.M{"$set": bson.M{"last_played_time": timestamp}},
+		options.UpdateOne().SetUpsert(true),
+	)
+	if err != nil {
+		logger.ErrorF("Failed to update last played time for chat %d: %v", chatID, err)
+		return err
+	}
+
+	cacheKey := "chat_settings_" + strconv.FormatInt(chatID, 10)
+	if cached, found := dbCache.Get(cacheKey); found {
+		if settings, ok := cached.(*ChatSettings); ok {
+			settings.LastPlayedTime = timestamp
+			dbCache.Set(cacheKey, settings)
+		}
+	}
+
+	return nil
+}
+
+func GetLastPlayed(chatID int64) (int64, error) {
+	settings, err := getChatSettings(chatID)
+	if err != nil {
+		return 0, err
+	}
+	return settings.LastPlayedTime, nil
+}
+
+func GetLeastRecentlyUsedChat(assIndex int, excludeChatIDs []int64) (int64, error) {
+	ctx, cancel := mongoCtx()
+	defer cancel()
+
+	filter := bson.M{
+		"ass_index": assIndex,
+		"_id":       bson.M{"$nin": excludeChatIDs},
+	}
+
+	opts := options.FindOne().SetSort(bson.M{"last_played_time": 1})
+
+	var settings ChatSettings
+	err := chatSettingsColl.FindOne(ctx, filter, opts).Decode(&settings)
+	if err != nil {
+		return 0, err
+	}
+
+	return settings.ChatID, nil
 }

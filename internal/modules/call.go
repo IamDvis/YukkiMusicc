@@ -111,6 +111,10 @@ func streamEndHandler(
 	cid := r.EffectiveChatID()
 	r.Parse()
 
+	now := time.Now().Unix()
+	r.SetLastPlayedTime(now)
+	go database.UpdateLastPlayed(chatID, now)
+
 	var t *state.Track
 	var wasLooping bool
 	if len(r.Queue()) == 0 && r.Loop() == 0 {

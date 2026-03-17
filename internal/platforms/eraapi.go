@@ -23,7 +23,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Laky-64/gologging"
@@ -40,6 +42,8 @@ const (
 	eraApiStatusURL                    = "https://eytapi02-fd074525a32f.herokuapp.com/status"
 	eraMaxPolls                        = 600
 )
+
+var eraapiTelegramDLRegex = regexp.MustCompile(`https:\/\/t\.me\/(?:c\/)?([a-zA-Z0-9_\-]+)\/(\d+)`)
 
 type eraApiTryResponse struct {
 	Link  string `json:"link"`
@@ -74,14 +78,13 @@ func (e *EraApiPlatform) Download(
 	track *state.Track,
 	mystic *telegram.NewMessage,
 ) (string, error) {
-	track.Video = false
-
 	if f := findFile(track); f != "" {
 		gologging.Debug("EraApi: cache hit → " + f)
 		return f, nil
 	}
 
-	tryResp, err := e.requestJob(ctx, track.URL)
+	query := parseQuery(track.URL)
+	tryResp, err := e.requestJob(ctx, query, track.Video)
 	if err != nil {
 		return "", fmt.Errorf("eraapi: request failed: %w", err)
 	}
@@ -91,8 +94,9 @@ func (e *EraApiPlatform) Download(
 		if tryResp.JobID == "" {
 			return "", errors.New("eraapi: neither link nor job_id received")
 		}
-		gologging.InfoF("EraApi: polling job %s", tryResp.JobID)
-		dlLink, err = e.pollJob(ctx, tryResp.JobID)
+		jobIDStr := strings.TrimSpace(tryResp.JobID)
+		gologging.InfoF("EraApi: polling job %s", jobIDStr)
+		dlLink, err = e.pollJob(ctx, jobIDStr)
 		if err != nil {
 			return "", fmt.Errorf("eraapi: poll failed: %w", err)
 		}
@@ -102,17 +106,21 @@ func (e *EraApiPlatform) Download(
 		return "", errors.New("eraapi: empty download link returned by API")
 	}
 
-	destPath := getPath(track, ".mp3")
+	ext := ".mp3"
+	if track.Video {
+		ext = ".mp4"
+	}
+	destPath := getPath(track, ext)
 
 	var pm *telegram.ProgressManager
 	if mystic != nil {
 		pm = utils.GetProgress(mystic)
 	}
 
-	if telegramDLRegex.MatchString(dlLink) {
+	if eraapiTelegramDLRegex.MatchString(dlLink) {
 		destPath, err = e.downloadFromTelegram(ctx, dlLink, destPath, pm)
 	} else {
-		err = e.downloadFromHTTP(ctx, dlLink, destPath)
+		return "", errors.New("eraapi: link is not a Telegram link")
 	}
 
 	if err != nil {
@@ -126,14 +134,19 @@ func (e *EraApiPlatform) Download(
 	return destPath, nil
 }
 
-func (*EraApiPlatform) requestJob(ctx context.Context, query string) (*eraApiTryResponse, error) {
+func (*EraApiPlatform) requestJob(ctx context.Context, query string, isVideo bool) (*eraApiTryResponse, error) {
 	var resp eraApiTryResponse
+
+	vid := "false"
+	if isVideo {
+		vid = "true"
+	}
 
 	httpResp, err := rc.R().
 		SetContext(ctx).
 		SetQueryParams(map[string]string{
 			"query": query,
-			"vid":   "false",
+			"vid":   vid,
 		}).
 		SetResult(&resp).
 		Get(eraApiTryURL)
@@ -194,32 +207,12 @@ func (*EraApiPlatform) pollJob(ctx context.Context, jobID string) (string, error
 	return "", fmt.Errorf("eraapi: timeout after %d seconds for job %s", eraMaxPolls, jobID)
 }
 
-func (*EraApiPlatform) downloadFromHTTP(ctx context.Context, dlURL, destPath string) error {
-	resp, err := rc.R().
-		SetContext(ctx).
-		SetOutputFileName(destPath).
-		Get(dlURL)
-
-	if err != nil {
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return err
-		}
-		return fmt.Errorf("HTTP download failed: %w", err)
-	}
-
-	if resp.IsError() {
-		return fmt.Errorf("HTTP download failed with status %d", resp.StatusCode())
-	}
-
-	return nil
-}
-
 func (*EraApiPlatform) downloadFromTelegram(
 	ctx context.Context,
 	dlURL, destPath string,
 	pm *telegram.ProgressManager,
 ) (string, error) {
-	matches := telegramDLRegex.FindStringSubmatch(dlURL)
+	matches := eraapiTelegramDLRegex.FindStringSubmatch(dlURL)
 	if len(matches) < 3 {
 		return "", fmt.Errorf("eraapi: invalid Telegram link: %s", dlURL)
 	}

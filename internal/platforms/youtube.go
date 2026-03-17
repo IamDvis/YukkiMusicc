@@ -79,6 +79,7 @@ func (yp *YouTubePlatform) GetTracks(
 	video bool,
 ) ([]*state.Track, error) {
 	trimmed := strings.TrimSpace(input)
+	trimmed = parseQuery(trimmed)
 	if trimmed == "" {
 		return nil, errors.New("empty query")
 	}

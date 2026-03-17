@@ -101,6 +101,7 @@ func (y *YtdlpPlatform) GetTracks(
 	video bool,
 ) ([]*state.Track, error) {
 	query = strings.TrimSpace(query)
+	query = parseQuery(query)
 
 	gologging.InfoF("YtDlp: Extracting metadata for %s", query)
 
@@ -165,6 +166,7 @@ func (y *YtdlpPlatform) Download(
 	}
 
 	gologging.InfoF("YtDlp: Downloading %s", track.Title)
+	track.URL = parseQuery(track.URL)
 
 	args := []string{
 		"--no-playlist",

@@ -59,8 +59,9 @@ type RoomState struct {
 	loop     int // number of times to replay current track
 	position int // current playback position
 
-	updatedAt int64 // last update timestamp
-	chatID    int64 // chat where audio is streamed
+	updatedAt      int64 // last update timestamp
+	lastPlayedTime int64 // last playback completion timestamp
+	chatID         int64 // chat where audio is streamed
 	cplayID   int64 // chat for service messages ( when channelplay then it will be provided to send service msg in that chat)
 
 	speed float64 // playback speed (0.5–4.0)
@@ -199,6 +200,24 @@ func (r *RoomState) CplayID() int64 {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.cplayID
+}
+
+func (r *RoomState) LastPlayedTime() int64 {
+	if r.destroyed.Load() {
+		return 0
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.lastPlayedTime
+}
+
+func (r *RoomState) SetLastPlayedTime(t int64) {
+	if r.destroyed.Load() {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.lastPlayedTime = t
 }
 
 func (r *RoomState) ChatID() int64 {

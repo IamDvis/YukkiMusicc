@@ -21,7 +21,7 @@
 package modules
 
 import (
-	"fmt"
+	"math/rand"
 	"strings"
 	"sync"
 	"time"
@@ -168,6 +168,17 @@ func autoLeaveAssistant(
 			return nil
 		}
 
+		lastPlayed, err := database.GetLastPlayed(chatID)
+		if err != nil {
+			gologging.WarnF("AutoLeave: Error fetching last played for %d: %v", chatID, err)
+			return nil
+		}
+
+		// 3-hour inactivity check
+		if time.Since(time.Unix(lastPlayed, 0)) < 3*time.Hour {
+			return nil
+		}
+
 		if err := ass.Client.LeaveChannel(chatID); err != nil {
 			if wait := tg.GetFloodWait(err); wait > 0 {
 				gologging.ErrorF(
@@ -195,7 +206,7 @@ func autoLeaveAssistant(
 			ass.Index, chatID, leaveCount, limit,
 		)
 
-		time.Sleep(3 * time.Second)
+		time.Sleep(time.Duration(2+rand.Intn(5)) * time.Second)
 
 		if leaveCount >= limit {
 			return tg.ErrStopIteration

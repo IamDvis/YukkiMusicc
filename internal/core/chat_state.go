@@ -302,6 +302,19 @@ func (s *ChatState) attemptJoin() error {
 		return err
 	}
 
+	// Group Limit Check (450)
+	dialogs, err := s.Assistant.Client.GetDialogs(&telegram.DialogOptions{Limit: 1})
+	if err == nil && dialogs.Total >= 450 {
+		gologging.InfoF("Assistant %d reached group limit (%d). Leaving oldest group...", s.Assistant.Index, dialogs.Total)
+		exclude := []int64{s.ChatID, config.LoggerID}
+		lruChatID, err := database.GetLeastRecentlyUsedChat(s.Assistant.Index, exclude)
+		if err == nil && lruChatID != 0 {
+			if leaveErr := s.Assistant.Client.LeaveChannel(lruChatID); leaveErr == nil {
+				gologging.InfoF("Assistant %d left LRU group %d to make room.", s.Assistant.Index, lruChatID)
+			}
+		}
+	}
+
 	_, err = s.Assistant.Client.JoinChannel(link)
 	if err == nil || telegram.MatchError(err, "USER_ALREADY_PARTICIPANT") {
 		s.setJoinSuccess()
