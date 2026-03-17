@@ -159,7 +159,10 @@ func PlayableMedia(m *telegram.NewMessage) (bool, bool) {
 	}
 
 	if m.IsReply() {
-		return PlayableMedia(rmsg)
+		rmsg, err := m.GetReplyMessage()
+		if err == nil {
+			return PlayableMedia(rmsg)
+		}
 	}
 
 	return check(m)
