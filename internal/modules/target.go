@@ -151,12 +151,23 @@ func handleTarget(m *tg.NewMessage, video bool) error {
 		r.SetData("prev_track", r.Track())
 		r.SetData("prev_path", r.FilePath())
 		r.SetData("prev_pos", r.Position())
+
+		// Send pause message to TARGET chat
+		title := html.EscapeString(utils.ShortTitle(r.Track().Title, 25))
+		pauseMsg := F(targetChatID, "pause_success", locales.Arg{
+			"title":    title,
+			"position": formatDuration(r.Position()),
+			"duration": formatDuration(r.Track().Duration),
+			"user":     "Target Mode",
+		})
+		core.Bot.SendMessage(targetChatID, pauseMsg)
+
 		r.Pause()
-		m.Reply("Found existing playback in target GC. Paused successfully.")
 	}
 
 	r.SetData("is_target", true)
 	r.SetData("origin_chat_id", m.ChannelID())
+	r.SetCplayID(m.ChannelID()) // Redirect notifications to origin chat
 
 	// Download and Play
 	downloadingMsg, _ := m.Reply("Downloading target track...")
@@ -171,10 +182,12 @@ func handleTarget(m *tg.NewMessage, video bool) error {
 		return tg.ErrEndGroup
 	}
 
+	track.Requester = "Target Mode"
 	err = r.Play(track, path, true)
 	if err != nil {
 		m.Reply(fmt.Sprintf("Playback failed in target chat: %v", err))
 		r.DeleteData("is_target")
+		r.SetCplayID(0)
 		return tg.ErrEndGroup
 	}
 
@@ -211,14 +224,30 @@ func stopTargetInChat(m *tg.NewMessage, chatID int64) error {
 	r.Stop()
 	r.DeleteData("is_target")
 	r.DeleteData("origin_chat_id")
+	r.SetCplayID(0) // Return notifications to target chat
 
 	// Restore previous track if exists
-	if ok, prevTrack := r.GetData("prev_track"); ok {
-		ok2, prevPath := r.GetData("prev_path")
+	if ok, prevTrackVal := r.GetData("prev_track"); ok {
+		prevTrack := prevTrackVal.(*state.Track)
+		okPath, prevPath := r.GetData("prev_path")
+		okPos, prevPos := r.GetData("prev_pos")
 
-		if ok2 {
-			r.Play(prevTrack.(*state.Track), prevPath.(string), true)
+		if okPath {
+			r.Play(prevTrack, prevPath.(string), true)
+			if okPos {
+				r.Seek(prevPos.(int))
+			}
 			r.Resume()
+
+			// Send resume message to TARGET chat
+			title := html.EscapeString(utils.ShortTitle(prevTrack.Title, 25))
+			resumeMsg := F(chatID, "resume_success", locales.Arg{
+				"title":    title,
+				"position": formatDuration(r.Position()),
+				"duration": formatDuration(prevTrack.Duration),
+				"user":     "Target Mode Stopped",
+			})
+			core.Bot.SendMessage(chatID, resumeMsg)
 		}
 		
 		r.DeleteData("prev_track")
