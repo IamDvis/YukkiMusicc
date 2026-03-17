@@ -241,6 +241,7 @@ func streamEndHandler(
 		return
 	}
 
+	targetLoop := r.Loop()
 	if err := r.Play(t, filePath, true); err != nil {
 		gologging.ErrorF(
 			"[onStreamEndHandler] Play failed for %s: %v",
@@ -251,6 +252,10 @@ func streamEndHandler(
 		core.DeleteRoom(chatID)
 
 		return
+	}
+
+	if wasLooping {
+		r.SetLoop(targetLoop)
 	}
 
 	title := utils.ShortTitle(t.Title, 25)

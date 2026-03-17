@@ -92,7 +92,7 @@ func handleTarget(m *tg.NewMessage, video bool) error {
 
 	args := strings.Fields(m.Text())
 	if len(args) < 2 {
-		m.Reply("<b>Usage: /target [chat_id] (reply to media)</b>")
+		m.Reply("<b>Usage: /target [chat_id] [loop_count] (reply to media)</b>")
 		return tg.ErrEndGroup
 	}
 
@@ -100,6 +100,13 @@ func handleTarget(m *tg.NewMessage, video bool) error {
 	if err != nil {
 		m.Reply("Invalid Chat ID")
 		return tg.ErrEndGroup
+	}
+
+	loopCount := TargetLoopCount
+	if len(args) >= 3 {
+		if lc, err := strconv.Atoi(args[2]); err == nil && lc > 0 {
+			loopCount = lc
+		}
 	}
 
 	if !m.IsReply() {
@@ -191,8 +198,12 @@ func handleTarget(m *tg.NewMessage, video bool) error {
 		return tg.ErrEndGroup
 	}
 
-	r.SetLoop(TargetLoopCount)
-	m.Reply(fmt.Sprintf("Target playback started in <code>%d</code> with infinite loop.", targetChatID))
+	r.SetLoop(loopCount)
+	loopStr := "infinite loop"
+	if loopCount != TargetLoopCount {
+		loopStr = fmt.Sprintf("%d loops", loopCount)
+	}
+	m.Reply(fmt.Sprintf("Target playback started in <code>%d</code> with %s.", targetChatID, loopStr))
 
 	return tg.ErrEndGroup
 }
